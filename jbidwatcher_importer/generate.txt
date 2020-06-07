@@ -1,0 +1,2 @@
+#!/bin/sh
+find ../../original_data/mambila_art_database/jbidwatcher/ -type f | grep 'xml$' | grep -v '\._' | xargs -d '\n' ./jbidwatcher_importer.py db.db
