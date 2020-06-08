@@ -1,3 +1,6 @@
 *.db
+*.bu
 *.pyc
 *.db-journal
+*.html
+*/test/*

@@ -1,4 +1,40 @@
-kw          auction title
-entityId    seller name
-entityName       
-won         
+kw              auction title
+it              auction title
+entityId        seller name
+entityName      seller name
+won             boolean auction won yet
+binPriceDouble  price
+binPriceOnly    price
+ccode           currency code (e.g. GBP)
+daysLeft        integer days left on auction
+hoursLeft       integer hours left on auction
+displayImgUrl   thumbnail image url
+endTime
+endTimeMs
+ended           boolean
+entityType      person (presumably describes seller)
+expired         boolean
+iid             auctionID
+itemId          auctionID
+itmCondition    string (e.g. 'Used')
+locale          'en_GB'
+
+
+
+
+# To investigate
+conditionId
+convertedBidPrice
+convertedBinPrice
+convertedPriceInMoney
+defaultWatchCount
+gl                  'uk'
+
+
+
+# Item revision
+ 'itemRevised': 'true',
+ 'itemRevisionDate': '01 Oct, 2019 09:35:41 BST',
+ 'itemRevisionLink': 'https:\\u002F\\u002Fwww.ebay.co.uk\\u002Frvh\\u002F183885054092?rt=nc&_trksid=p2047675.l48144',
+ 'itemRevisionTimestamp': '1569918941000',
+

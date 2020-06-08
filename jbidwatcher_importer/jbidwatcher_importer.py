@@ -63,7 +63,7 @@ def jbw_import(db_path, path):
         c.execute('''
             CREATE TABLE IF NOT EXISTS ebay_listings (
                 listing_id INTEGER NOT NULL PRIMARY KEY,
-                title TEXT NOT NULL,
+                title TEXT,
                 seller TEXT,   -- Primary key of sellers table
                 start_time INTEGER,
                 end_time INTEGER,
@@ -144,7 +144,10 @@ def process_auction(a, db_path):
                 auction_dict[name] = e
 
 
-    title = auction['title']
+    try:
+        title = auction['title']
+    except KeyError as e:
+        title = None    # Some strange jbidwatcher entries don't have titles
     try:
         seller = auction['seller']
     except KeyError:
