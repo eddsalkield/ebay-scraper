@@ -4,10 +4,11 @@ from termcolor import colored
 from urllib.parse import urlparse
 import sqlite3
 import pickle
+import traceback
 
 from pprint import pprint
 
-import ebay_scraper as es
+from . import ebay_scraper
 
 # From https://stackoverflow.com/questions/18092354/python-split-string-without-splitting-escaped-character#21107911
 def _escape_split(s, delim):
@@ -25,6 +26,38 @@ def _escape_split(s, delim):
             continue  # add more to buf
         res.append(buf + s[i:j - d])
         i, buf = j + len(delim), ''  # start after delim
+
+# merges d2 into d1
+def _merge_dicts(d1: dict, d2: dict):
+    for k,v2 in d2.items():
+        try:
+            v1 = d1[k]
+        except KeyError:
+            d1[k] = v2
+            continue
+        
+        if v1 is None:
+            d1[k] = v2
+            continue
+        elif v2 is None:
+            d1[k] = v1
+            continue
+
+        if type(v1) != type(v2):
+            raise ValueError(f'{v1} and {v2} not of same type!')
+
+        if isinstance(v1, int):
+            if v2 > v1:
+                d1[k] = v2
+            continue
+
+        if isinstance(v1, str):
+            d1[k] = v2
+            continue
+        
+        raise ValueError('Unknown failure between {}:{} and {}:{}'\
+                .format(v1, type(v1), v2, type(v2)))
+    return d1
 
 class EbayScraper():
     def __init__(self, db_path, image_location=None):
@@ -52,14 +85,20 @@ class EbayScraper():
 
             c.execute('''
             CREATE TABLE IF NOT EXISTS ebay_sellers (
-                    nickname TEXT NOT NULL PRIMARY KEY,
+                    seller_id TEXT NOT NULL PRIMARY KEY,
+                    description TEXT,
                     contacted INTEGER NOT NULL,
                     email TEXT,
-                    loc_id TEXT,
+                    location TEXT,
                     name TEXT,
                     registered INTEGER,
                     permission_given INTEGER NOT NULL,
-                    selling_since INTEGER
+                    member_since TEXT,
+                    member_since_unix INTEGER,
+                    n_followers INTEGER,
+                    n_reviews INTEGER,
+                    percent_positive_feedback INTEGER
+
                 )
             ''')
 
@@ -84,8 +123,14 @@ class EbayScraper():
         @self._db_transaction
         def ebay_listings_entries(c):
             return [row[1] for row in \
-                c.execute("pragma table_info('sqlite_master')").fetchall()]
+                c.execute("pragma table_info('ebay_listings')").fetchall()]
         self.ebay_listings_entries = ebay_listings_entries
+
+        @self._db_transaction
+        def ebay_sellers_entries(c):
+            return [row[1] for row in \
+                c.execute("pragma table_info('ebay_sellers')").fetchall()]
+        self.ebay_sellers_entries = ebay_sellers_entries
 
         if image_location is None:
             # Determine the image location
@@ -97,9 +142,7 @@ class EbayScraper():
                 return c.fetchall()
             if not im_loc:
                 raise ValueError('image_location must be specified on first run')
-            print(im_loc)
             image_location = im_loc[0][1]
-            print(image_location)
         else:
             print(f'Setting image_location to {image_location}')
             @self._db_transaction
@@ -143,7 +186,7 @@ class EbayScraper():
         finally:
             c.close()
 
-    def download_images(self, image_urls, name_prefix: str = 'ebay'):
+    def _download_images(self, image_urls, name_prefix: str = 'ebay'):
         self.image_location = pathlib.Path(self.image_location)
         image_paths = []
         for url in image_urls:
@@ -158,33 +201,6 @@ class EbayScraper():
                 with open(path, 'wb') as f:
                     f.write(r.content)
         return image_paths
-
-    # merges d2 into d1
-    def _merge_dicts(self, d1: dict, d2: dict):
-        for k,v2 in d2.items():
-            try:
-                v1 = d1[k]
-            except KeyError:
-                d1[k] = v2
-                continue
-            
-            if v1 is None:
-                d1[k] = v2
-                continue
-
-            if type(v1) != type(v2):
-                raise ValueError(f'{v1} and {v2} not of same type!')
-
-            if int(v1) and v2 > v1:
-                d1[k] = v2
-                continue
-
-            if str(v1):
-                d1[k] = v2
-                continue
-            
-            raise ValueError('Unknown failure')
-        return d1
 
 
     def _merge_and_write_auction(self, auction: dict):
@@ -202,8 +218,6 @@ class EbayScraper():
         existing_auction = {}
         if existing_entry is not None:
             # Merge existing entries
-            print('###')
-            print(self.ebay_listings_entries)
             for name, e in zip(self.ebay_listings_entries, existing_entry):
                 existing_auction[name] = e
 
@@ -211,8 +225,6 @@ class EbayScraper():
         current_newer = False
         if existing_entry is not None:
             # Determine which entry is newer
-            pprint(auction)
-            pprint(existing_auction)
             try:
                 current_newer = auction['n_bids'] > existing_auction['n_bids'] \
                         or auction['end_time'] > existing_auction['end_time'] \
@@ -228,9 +240,9 @@ class EbayScraper():
                 current_newer = True
         
         if current_newer:
-            a = self._merge_dicts(existing_auction, auction)
+            a = _merge_dicts(existing_auction, auction)
         else:
-            a = self._merge_dicts(auction, existing_auction)
+            a = _merge_dicts(auction, existing_auction)
 
         # Write out to self.db_path
         @self._db_transaction
@@ -254,14 +266,14 @@ class EbayScraper():
 
     # Some method to write out to the database
     def scrape_auction_to_db(self, auction, base: str = 'https://www.ebay.com'):
-        auction_dict = es.scrape_auction_page(auction, base)
+        auction_dict = ebay_scraper.scrape_auction_page(auction, base)
         self._merge_and_write_auction(auction_dict)
 
         # Grab images and save them
-        new_image_paths = list(map(str, self.download_images( \
+        new_image_paths = list(map(str, self._download_images( \
                 auction_dict['image_urls'])))
         try:
-            existing_image_paths = _escape_split(auction_dict['image_paths'])
+            existing_image_paths = _escape_split(auction_dict['image_paths'], ':')
         except KeyError:
             existing_image_paths = []
         image_paths = ':'.join(list(set(new_image_paths).union(existing_image_paths)))
@@ -273,9 +285,71 @@ class EbayScraper():
                 WHERE listing_id=?
             ''', (image_paths, auction_dict['listing_id'],))
 
+        # TODO: also save web page?
+        return auction_dict
 
-    # Some ebay download profile method
+
+    def _merge_and_write_profile(self, profile):
+        # Determine if a seller of the given id currently exists
+        @self._db_transaction
+        def existing_entry(c):
+            c.execute('SELECT * FROM ebay_sellers WHERE seller_id=?',\
+                    (profile['seller_id'],))
+            r = c.fetchall()
+            if not r:
+                return None
+            else:
+                return r[0]
+
+        existing_profile = {}
+        if existing_entry is not None:
+            # Merge existing entries
+            for name, e in zip(self.ebay_sellers_entries, existing_entry):
+                existing_profile[name] = e
+
+        # Assume the existing profile is older
+        p = {**existing_profile, **profile}
+
+        # Write out to self.db_path
+        @self._db_transaction
+        def _(c):
+            # Delete the row
+            if existing_entry is not None:
+                c.execute('DELETE FROM ebay_sellers WHERE seller_id=?', \
+                        (p['seller_id'],))
+
+            # Update the row to its new values
+            c.execute('''
+                INSERT INTO ebay_sellers (
+                    seller_id, description, contacted, location, registered,
+                    permission_given, member_since, member_since_unix,
+                    n_followers, n_reviews, percent_positive_feedback)
+                VALUES (?, ?, 0, ?, 0, 0, ?, ?, ?, ?, ?)''',
+                (p['seller_id'], p['description'], p['location'], \
+                    p['member_since'], p['member_since_unix'], \
+                    p['n_followers'], p['n_reviews'], \
+                    p['percent_positive_feedback'])
+                )
+
+    def scrape_profile_to_db(self, profile: str, base: str = 'https://www.ebay.com'):
+        profile_dict = ebay_scraper.scrape_profile_page(profile, base)
+        self._merge_and_write_profile(profile_dict)
 
     # Some ebay search and download method
-
-    # Some scheduling method
+    def scrape_search_to_db(self, query_string, n_results, base: str = 'https://www.ebay.com'):
+        results = ebay_scraper.scrape_search_page(query_string, n_results, base)
+        scraped_profiles = set()
+        for listing_id, d in results.items():
+            try:
+                print('Scraping auction url {}'.format(d['url']))
+                a = self.scrape_auction_to_db(d['url'])
+                profile = a['seller']
+                if profile not in scraped_profiles:
+                    print('Scraping profile {}'.format(a['seller']))
+                    self.scrape_profile_to_db(a['seller'])
+                    scraped_profiles.add(profile)
+                else:
+                    print('Already scraped profile {}'.format(a['seller']))
+            except Exception:
+                print(colored('Error processing auction {}'.format(d['url']), 'red'))
+                print(colored(traceback.format_exc(), 'red'))

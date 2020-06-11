@@ -8,8 +8,11 @@ from termcolor import colored
 import json
 import re
 import unicodedata
+from datetime import datetime
+import dateutil.parser
 
 import sys
+import os
 from pprint import pprint
 from typing import List
 
@@ -61,25 +64,32 @@ def scrape_auction_page(auction, base: str = 'https://www.ebay.com', \
         return raw_data
     else:
         # Validate API assumptions
+        try:
+            raw_data['it']
+        except KeyError:
+            raise ValueError(f'No it (title) field available for domain {url}.  Consider using a different prefix.')
         if raw_data['kw'] != raw_data['it']:
-            print(colored('Notify author: kw==it assumption incorrect.', 'red'))
+            print(colored(f'notify author: kw==it assumption incorrect for domain {url}.', 'red'))
         try:
             if raw_data['entityId'] != raw_data['entityName']:
-                print(colored('notify author: entityid==entityname assumption incorrect.', 'red'))
+                print(colored(f'notify author: entityid==entityname assumption incorrect for domain {url}', 'red'))
         except KeyError:
-            print(colored('notify author: entityid or entityname does not exist for auction {}.'.format(raw_data['itemId']), 'red'))
+            print(colored('notify author: entityid or entityname does not exist for auction {}, for domain {}.'.format(raw_data['itemId'], url), 'red'))
 
         def f(url):
             return json.loads('"{}"'.format(url))
         image_urls = list(map(f, _get_dict_value(raw_data, 'maxImageUrl')))
+
+        # TODO: get description
+        # Maybe using 'itemDescSnippet' field?
 
         # Assemble important data
         return {
             'listing_id': _get_dict_value(raw_data, 'itemId'),
             'title': unicodedata.normalize("NFKD", _get_dict_value(raw_data, 'it')),
             'seller': _get_dict_value(raw_data, 'entityName'),
-            'start_time': _get_dict_value(raw_data, 'startTime')/1000,
-            'end_time': _get_dict_value(raw_data, 'endTime')/1000,
+            'start_time': int(_get_dict_value(raw_data, 'startTime')/1000),
+            'end_time': int(_get_dict_value(raw_data, 'endTime')/1000),
             'n_bids': _get_dict_value(raw_data, 'bids'),
             'currency_code': _get_dict_value(raw_data, 'ccode'),
             'price': _get_dict_value(raw_data, 'bidPriceDouble'),
@@ -103,6 +113,12 @@ def _generate_auction_url(auction_id: int, base_url: str):
 
 # duplicates - a list of keys with permitted duplicates
 def _parse_auction_page(page_text: str, duplicates: List[str]):
+    # Strip c from s, without exception
+    def strip(s, c):
+        if isinstance(s, str):
+            return s.strip(c)
+        return s
+
     soup = BeautifulSoup(page_text, 'html.parser')
 
     with open('page.html', 'w') as f:
@@ -119,12 +135,9 @@ def _parse_auction_page(page_text: str, duplicates: List[str]):
             if '$rwidgets' in s:
                 script_texts.append(s)
 
-    # Strip c from s
-    def strip(s, c):
-        if isinstance(s, str):
-            return s.strip(c)
-        return s
-
+    # Bodge: until we move from slimit to calmjs
+    sys.stdout = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")
 
     # Parsing js
     raw_values = {}
@@ -159,6 +172,11 @@ def _parse_auction_page(page_text: str, duplicates: List[str]):
                             else:
                                 raw_values[k] = v
                         #raw_values = {**raw_values, **fields}
+    # Bodge: until we move from slimit to calmjs
+    sys.stdout = open(os.devnull, "w")
+    sys.stdout = sys.__stdout__
+    sys.stderr = sys.__stderr__
+
     return raw_values
 
 # Generates a search URL
@@ -174,7 +192,6 @@ def _generate_search_url(query_string: str, page_num: int, \
     return urljoin(base_url, suffix)
 
 # Returns a list of dict of products
-# TODO: price, thumbnail etc.
 def _parse_search_page(page_text):
     soup = BeautifulSoup(page_text, 'html.parser')
     auctions_list = soup.find('ul', id='ListViewInner')
@@ -188,8 +205,6 @@ def _parse_search_page(page_text):
                 result.find('div', attrs={'class': 's-item__title--tagblock'}) or \
                 result.find('a', href=re.compile('.*pulsar.*')):
             continue
-            #print(colored('Found sponsored', 'red'))
-            #print(result.prettify())
 
         try:
             listing_id = int(result.attrs['listingid'])
@@ -212,7 +227,6 @@ def _parse_search_page(page_text):
     return auctions
 
 
-# TODO: specify just n_results
 # Returns up to n_results
 def scrape_search_page(query_string: str, n_results: int = 50, \
         base: str = 'https://www.ebay.com'):
@@ -241,7 +255,7 @@ def scrape_profile_page(profile: str, base: str = 'https://www.ebay.com'):
         seller_id = profile
     else:
         url = profile
-        seller_id = urlparse.path.split('/')[-1]
+        seller_id = urlparse(url).path.split('/')[-1]
 
     r = requests.get(url)
     if not r.ok:
@@ -259,7 +273,6 @@ def _generate_profile_url(profile_id: int, base_url: str):
 
 def _parse_profile_page(page_text):
     soup = BeautifulSoup(page_text, 'html.parser')
-    print(soup.prettify())
 
     description = soup.find('h2', attrs={'class': 'bio inline_value'}).get_text(strip=True)
 
@@ -270,6 +283,11 @@ def _parse_profile_page(page_text):
     n_reviews = None    # Appears obfuscated
     member_since = member_info.find('span', text=re.compile('.*Member since:.*')) \
             .parent.find('span', attrs={'class': 'info'}).get_text(strip=True)
+    try:
+        member_since_unix = int(datetime.timestamp(dateutil.parser.parse( \
+                member_since)))
+    except ValueError:
+        member_since_unix = None
     location = member_info.find('span', attrs={'class': 'mem_loc'}).get_text(strip=True)
     percent_positive_feedback = soup.find('div', attrs={'class': 'perctg'}) \
             .get_text(strip=True).split('%')[0]
@@ -279,6 +297,7 @@ def _parse_profile_page(page_text):
         'n_followers': n_followers,
         'n_reviews': n_reviews,
         'member_since': member_since,
+        'member_since_unix': member_since_unix,
         'location': location,
         'percent_positive_feedback': percent_positive_feedback
     }

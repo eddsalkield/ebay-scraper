@@ -82,14 +82,18 @@ def jbw_import(db_path, path):
 
         c.execute('''
         CREATE TABLE IF NOT EXISTS ebay_sellers (
-                nickname TEXT NOT NULL PRIMARY KEY,
+                seller_id TEXT NOT NULL PRIMARY KEY,
+                description TEXT,
                 contacted INTEGER NOT NULL,
                 email TEXT,
-                loc_id TEXT,
-                name TEXT,
+                location TEXT,
                 registered INTEGER,
                 permission_given INTEGER NOT NULL,
-                selling_since INTEGER
+                member_since TEXT,
+                member_since_unix INTEGER,
+                n_followers INTEGER,
+                n_reviews INTEGER,
+                percent_positive_feedback INTEGER
             )
         ''')
 

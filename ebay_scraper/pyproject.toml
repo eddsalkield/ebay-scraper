@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "ebay_scraper"
+version = "0.0.1"
+description = "A CLI utility, with an extensible API, for scraping EBay"
+authors = ["Edd Salkield <edd@salkield.uk>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pathlib = "^1.0.1"
+requests = "^2.23.0"
+termcolor = "^1.1.0"
+pprint = "^0.1"
+bs4 = "^0.0.1"
+slimit = "^0.8.1"
+datetime = "^4.3"
+typing = "^3.7.4"
+typer = "^0.2.1"
+python-dateutil = "^2.8.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[tool.poetry.scripts]
+ebay-scraper = 'ebay_scraper.main:main'
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+
