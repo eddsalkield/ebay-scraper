@@ -1,9 +1,0 @@
-Functions:
-Parses toml file which specifies:
- * Which search terms to search for
- * Number of relevant search queries to return
- * How frequently to run the scan
- * Database to put items into
- * Name of seller database
- * Name of auction database
- * Name of location database
