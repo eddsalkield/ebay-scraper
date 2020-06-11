@@ -5,10 +5,21 @@ entityName      seller name
 won             boolean auction won yet
 binPriceDouble  price
 binPriceOnly    price
+bidPriceDouble
+bidPriceOnly
+bidingAvailable
+bids
+
+
+bid             boolean - bidding enabled
+bin             boolean - "buy it now" enabled
 ccode           currency code (e.g. GBP)
+currentDomain
 daysLeft        integer days left on auction
 hoursLeft       integer hours left on auction
+minutesLeft
 displayImgUrl   thumbnail image url
+startTime
 endTime
 endTimeMs
 ended           boolean
@@ -18,6 +29,27 @@ iid             auctionID
 itemId          auctionID
 itmCondition    string (e.g. 'Used')
 locale          'en_GB'
+maxBidPrice
+maxQtyPerBuyer
+minToBidPrice
+numberOfImages
+originalPrice
+originalRetailPrice
+percentOff
+remQty
+remainQty
+sold
+soldOffEBay
+soldOnEBay
+totalQty
+vatIncluded
+vatExcluded
+videoUrl
+won
+
+# Images
+maxImageUrl (seems to only give one image?)
+numberOfImages
 
 
 

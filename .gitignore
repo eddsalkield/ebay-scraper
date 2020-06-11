@@ -4,3 +4,4 @@
 *.db-journal
 *.html
 */test/*
+*.jpg

@@ -76,7 +76,7 @@ def jbw_import(db_path, path):
                 starting_price_currency TEXT,
                 winner TEXT,
                 location_id TEXT,  -- Primary key of locations table
-                image_paths TEXT NOT NULL -- paths relative to some base path,
+                image_paths BLOB NOT NULL -- paths relative to some base path,
             )
         ''')
 
