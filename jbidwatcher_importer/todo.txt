@@ -11,7 +11,8 @@ ebay_sellers: name -> get deleted
               + n_percent_positive_feedback
               + member_since_unix
               member_since -> :TEXT
-ebay_listings: description
+ebay_listings: description : TEXT
+
 
 
 Add when_scraped field

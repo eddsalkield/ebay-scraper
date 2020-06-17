@@ -41,90 +41,120 @@ def _get_dict_value(d, k):
 
     return d[k]
 
+def _normalise_description(desc):
+    # Strips multiple groups of c from s
+    def strip_multiple(s, c):
+        return c.join(filter(None, s.split(c)))
+
+    norm = unicodedata.normalize("NFKD", desc)
+    norm = '\n'.join(filter(None, filter(lambda e: not e.isspace(), norm.split('\n'))))
+    norm = strip_multiple(norm, ' ')
+    return norm
+
+def _get_page_resolve_iframes(url):
+    r = requests.get(url)
+    if not r.ok:
+        raise ValueError('The requested page could not be found')
+    soup = BeautifulSoup(r.text, 'html.parser')
+    for iframe in soup.find_all('iframe'):
+        try:
+            src = iframe['src']
+        except KeyError:
+            continue
+
+        ir = requests.get(src)
+        if not ir.ok:
+            continue
+        iframe_soup = BeautifulSoup(ir.text, 'html.parser')
+        iframe.append(iframe_soup)
+    return soup
+
 # auction can be a URL or a page ID
 def scrape_auction_page(auction, base: str = 'https://www.ebay.com', \
-        raw: bool = False):
+        raw: bool = False, page_save_path=None):
+    is_file = False
     try:
         auction_id = int(auction)
     except ValueError:
         # Ensure auction is a valid url
-        if urlparse(auction).netloc == '':
-            raise ValueError('auction must be a valid auction ID or URL')
-        url = auction
+        p = urlparse(auction)
+        if p.netloc == '':
+            if p.scheme == 'file':
+                is_file = True
+                url = p.path
+            else:
+                raise ValueError('auction must be a valid auction ID or URL')
+        else:
+            url = auction
     else:
         url = _generate_auction_url(auction_id, base)
 
-    r = requests.get(url)
-    if not r.ok:
-        raise ValueError('The requested page could not be found')
-
-    # Return raw data if requested
-    raw_data = _parse_auction_page(r.text, ['maxImageUrl'])
-    if raw:
-        return raw_data
+    if is_file:
+        with open(url, errors='ignore') as f:
+            page = f.read()
+            soup = BeautifulSoup(page, 'html.parser')
     else:
-        # Validate API assumptions
-        try:
-            raw_data['it']
-        except KeyError:
-            raise ValueError(f'No it (title) field available for domain {url}.  Consider using a different prefix.')
-        if raw_data['kw'] != raw_data['it']:
-            print(colored(f'notify author: kw==it assumption incorrect for domain {url}.', 'red'))
-        try:
-            if raw_data['entityId'] != raw_data['entityName']:
-                print(colored(f'notify author: entityid==entityname assumption incorrect for domain {url}', 'red'))
-        except KeyError:
-            print(colored('notify author: entityid or entityname does not exist for auction {}, for domain {}.'.format(raw_data['itemId'], url), 'red'))
+        # Open page, resolving iframes
+        soup = _get_page_resolve_iframes(url)
 
-        def f(url):
-            return json.loads('"{}"'.format(url))
-        image_urls = list(map(f, _get_dict_value(raw_data, 'maxImageUrl')))
+    a = _parse_auction_page(soup, ['maxImageUrl'])
 
-        # TODO: get description
-        # Maybe using 'itemDescSnippet' field?
+    # Write out page, if required
+    if page_save_path is not None:
+        name = '{}.html'.format(a['listing_id'])
+        with open(page_save_path.joinpath(name), 'w') as f:
+            f.write(soup.prettify())
 
-        # Assemble important data
-        return {
-            'listing_id': _get_dict_value(raw_data, 'itemId'),
-            'title': unicodedata.normalize("NFKD", _get_dict_value(raw_data, 'it')),
-            'seller': _get_dict_value(raw_data, 'entityName'),
-            'start_time': int(_get_dict_value(raw_data, 'startTime')/1000),
-            'end_time': int(_get_dict_value(raw_data, 'endTime')/1000),
-            'n_bids': _get_dict_value(raw_data, 'bids'),
-            'currency_code': _get_dict_value(raw_data, 'ccode'),
-            'price': _get_dict_value(raw_data, 'bidPriceDouble'),
-            'buy_now_price': _get_dict_value(raw_data, 'binPriceDouble'),
-            'starting_price': None,
-            'winner': None,
-            'location': None,
-            'won': _get_dict_value(raw_data, 'won'),
-            'image_urls': image_urls,
-            'locale': _get_dict_value(raw_data, 'locale'),
-            'quantity': _get_dict_value(raw_data, 'totalQty'),
-            'video_url': _get_dict_value(raw_data, 'videoUrl'),
-            'vat_included': _get_dict_value(raw_data, 'vatIncluded'),
-            'domain': _get_dict_value(raw_data, 'currentDomain')
-        }
+    return a
 
 def _generate_auction_url(auction_id: int, base_url: str):
     page_suffix = '/itm/{}'
     suffix = page_suffix.format(auction_id)
     return urljoin(base_url, suffix)
 
-# duplicates - a list of keys with permitted duplicates
-def _parse_auction_page(page_text: str, duplicates: List[str]):
+def _parse_2010_auction_soup(soup, duplicates, raw):
+    # Example file: mambila_art_database/jbidwatcher/jbidwatch\ data\ 2010\ perhaps/auctionsave/400130806558.html
+    # Find listing id
+    listing_id = soup.find('td', text=re.compile('.*Item number:.*')) \
+            .next_sibling.text
+
+    # Find description
+    desc = soup.find('div', attrs={'class': 'item_description'}).text
+
+    return {
+        'listing_id': int(listing_id),
+        'description': _normalise_description(desc)
+    }
+
+    # TODO: add any or all of the following:
+#            'listing_id': _get_dict_value(raw_data, 'itemId'),
+#            'title': unicodedata.normalize("NFKD", _get_dict_value(raw_data, 'it')),
+#            'seller': _get_dict_value(raw_data, 'entityName'),
+#            'start_time': int(_get_dict_value(raw_data, 'startTime')/1000),
+#            'end_time': int(_get_dict_value(raw_data, 'endTime')/1000),
+#            'n_bids': _get_dict_value(raw_data, 'bids'),
+#            'currency_code': _get_dict_value(raw_data, 'ccode'),
+#            'price': _get_dict_value(raw_data, 'bidPriceDouble'),
+#            'buy_now_price': _get_dict_value(raw_data, 'binPriceDouble'),
+#            'starting_price': None,
+#            'winner': None,
+#            'location': None,
+#            'won': _get_dict_value(raw_data, 'won'),
+#            'image_urls': image_urls,
+#            'locale': _get_dict_value(raw_data, 'locale'),
+#            'quantity': _get_dict_value(raw_data, 'totalQty'),
+#            'video_url': _get_dict_value(raw_data, 'videoUrl'),
+#            'vat_included': _get_dict_value(raw_data, 'vatIncluded'),
+#            'domain': _get_dict_value(raw_data, 'currentDomain')
+    return results
+
+def _parse_2020_auction_soup(soup, duplicates, raw=False):
     # Strip c from s, without exception
     def strip(s, c):
         if isinstance(s, str):
             return s.strip(c)
         return s
 
-    soup = BeautifulSoup(page_text, 'html.parser')
-
-    with open('page.html', 'w') as f:
-        f.write(page_text)
-
-    # Locate the JSDF div
     div = soup.find('div', id='JSDF')
     scripts = div.find_all('script', src=None)
 
@@ -177,7 +207,81 @@ def _parse_auction_page(page_text: str, duplicates: List[str]):
     sys.stdout = sys.__stdout__
     sys.stderr = sys.__stderr__
 
-    return raw_values
+    if raw:
+        return raw_values
+
+    # Validate API assumptions
+    try:
+        raw_values['it']
+    except KeyError:
+        try:
+            raw_values['kw']
+        except KeyError:
+            raise ValueError(f'No it (title) field available.  Consider using a different prefix.')
+        else:
+            title_key = 'kw'
+    else:
+        title_key = 'it'
+
+    if raw_values['kw'] != raw_values['it']:
+        print(colored(f'notify author: kw==it assumption incorrect for domain {url}.', 'red'))
+    try:
+        if raw_values['entityId'] != raw_values['entityName']:
+            print(colored(f'notify author: entityid==entityname assumption incorrect for domain {url}', 'red'))
+    except KeyError:
+        print(colored('notify author: entityid or entityname does not exist for auction {}, for domain {}.'.format(raw_values['itemId'], url), 'red'))
+
+    def f(url):
+        return json.loads('"{}"'.format(url))
+    image_urls = list(map(f, _get_dict_value(raw_values, 'maxImageUrl')))
+
+    # Get description
+    # Since the description is stored in a separate iframe, an additional
+    # request is required
+    # Determine if iframe already loaded
+    
+    # If not loaded
+    iframe = soup.find('div', attrs={'id': 'desc_div'}).find('iframe')
+    # Else get the desc_soup some other way
+    desc = _normalise_description(iframe.text)
+
+    print(f'Image urls: {image_urls}')
+
+    # Assemble important data
+    return {
+        'listing_id': _get_dict_value(raw_values, 'itemId'),
+        'title': unicodedata.normalize("NFKD", _get_dict_value(raw_values, \
+                title_key)),
+        'seller': _get_dict_value(raw_values, 'entityName'),
+        'start_time': int(_get_dict_value(raw_values, 'startTime')/1000),
+        'end_time': int(_get_dict_value(raw_values, 'endTime')/1000),
+        'n_bids': _get_dict_value(raw_values, 'bids'),
+        'currency_code': _get_dict_value(raw_values, 'ccode'),
+        'price': _get_dict_value(raw_values, 'bidPriceDouble'),
+        'buy_now_price': _get_dict_value(raw_values, 'binPriceDouble'),
+        'starting_price': None,
+        'winner': None,
+        'location': None,
+        'won': _get_dict_value(raw_values, 'won'),
+        'image_urls': image_urls,
+        'locale': _get_dict_value(raw_values, 'locale'),
+        'quantity': _get_dict_value(raw_values, 'totalQty'),
+        'video_url': _get_dict_value(raw_values, 'videoUrl'),
+        'vat_included': _get_dict_value(raw_values, 'vatIncluded'),
+        'domain': _get_dict_value(raw_values, 'currentDomain'),
+        'description': desc
+    }
+
+# duplicates - a list of keys with permitted duplicates
+def _parse_auction_page(soup, duplicates: List[str], raw: bool = False):
+    # Try various parsing methods until one works
+    try:
+        return _parse_2020_auction_soup(soup, duplicates, raw)
+    except Exception:
+        try:
+            return _parse_2010_auction_soup(soup, duplicates, raw)
+        except Exception as e:
+            raise ValueError('Could not parse web page')
 
 # Generates a search URL
 def _generate_search_url(query_string: str, page_num: int, \
@@ -249,7 +353,8 @@ def scrape_search_page(query_string: str, n_results: int = 50, \
     return results
 
 # profile can be a URL or a profile ID
-def scrape_profile_page(profile: str, base: str = 'https://www.ebay.com'):
+def scrape_profile_page(profile: str, base: str = 'https://www.ebay.com', \
+        page_save_path=None):
     if urlparse(profile).netloc == '':
         url = _generate_profile_url(profile, base)
         seller_id = profile
@@ -261,7 +366,14 @@ def scrape_profile_page(profile: str, base: str = 'https://www.ebay.com'):
     if not r.ok:
         raise ValueError('The requested page could not be found')
 
-    d = _parse_profile_page(r.text)
+    text = r.text
+    if page_save_path is not None:
+        profile_path = page_save_path.joinpath(f'{seller_id}.html')
+        with open(profile_path, 'w') as f:
+            soup = BeautifulSoup(text, 'html.parser')
+            f.write(soup.prettify())
+
+    d = _parse_profile_page(text)
     d['url'] = url
     d['seller_id'] = seller_id
     return d
