@@ -1,3 +1,0 @@
-Automatic prefix switching in case kw or it not found
-    e.g. https://www.ebay.com/itm/Grande-statuette-africaine-Cameroun-Mambila-Art-ethnique-aficain-Fetiche-en-bois/153810161303
-    vs https://www.ebay.co.uk/itm/Grande-statuette-africaine-Cameroun-Mambila-Art-ethnique-aficain-Fetiche-en-bois/153810161303
