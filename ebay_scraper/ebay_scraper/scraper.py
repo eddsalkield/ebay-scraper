@@ -97,11 +97,11 @@ def scrape_auction_page(auction, base: str = 'https://www.ebay.com', \
         # Open page, resolving iframes
         soup = _get_page_resolve_iframes(url)
 
-    a = _parse_auction_page(soup, ['maxImageUrl'])
+    a = _parse_auction_page(soup, ['maxImageUrl', 'displayImgUrl'])
 
     # Write out page, if required
     if page_save_path is not None:
-        name = '{}.html'.format(a['listing_id'])
+        name = '{}.html'.format(a['auction_id'])
         with open(page_save_path.joinpath(name), 'w') as f:
             f.write(soup.prettify())
 
@@ -115,19 +115,19 @@ def _generate_auction_url(auction_id: int, base_url: str):
 def _parse_2010_auction_soup(soup, duplicates, raw):
     # Example file: mambila_art_database/jbidwatcher/jbidwatch\ data\ 2010\ perhaps/auctionsave/400130806558.html
     # Find listing id
-    listing_id = soup.find('td', text=re.compile('.*Item number:.*')) \
+    auction_id = soup.find('td', text=re.compile('.*Item number:.*')) \
             .next_sibling.text
 
     # Find description
     desc = soup.find('div', attrs={'class': 'item_description'}).text
 
     return {
-        'listing_id': int(listing_id),
+        'auction_id': int(auction_id),
         'description': _normalise_description(desc)
     }
 
     # TODO: add any or all of the following:
-#            'listing_id': _get_dict_value(raw_data, 'itemId'),
+#            'auction_id': _get_dict_value(raw_data, 'itemId'),
 #            'title': unicodedata.normalize("NFKD", _get_dict_value(raw_data, 'it')),
 #            'seller': _get_dict_value(raw_data, 'entityName'),
 #            'start_time': int(_get_dict_value(raw_data, 'startTime')/1000),
@@ -233,7 +233,29 @@ def _parse_2020_auction_soup(soup, duplicates, raw=False):
 
     def f(url):
         return json.loads('"{}"'.format(url))
-    image_urls = list(map(f, _get_dict_value(raw_values, 'maxImageUrl')))
+
+    # Get image URLS
+    # TODO: sometimes only displayImgUrl is given, when the s-l600 image exists
+    # Example: https://www.ebay.com/itm/Chubby-Blob-Seal-Plush-Toy-Animal-Cute-Ocean-Pillow-Pet-Stuffed-Doll-Kids-Gift/362995774962
+    # Example: https://i.ebayimg.com/images/g/6NkAAOSwkEFd50Kb/s-l600.jpg
+    raw_image_urls = []
+    if 'maxImageUrl' in raw_values.keys():
+        if 'displayImgUrl' in raw_values.keys():
+            for max_image, disp_image in zip( \
+                    _get_dict_value(raw_values, 'maxImageUrl'), \
+                    _get_dict_value(raw_values, 'displayImgUrl')):
+                if max_image == 'null':
+                    if disp_image != 'null':
+                        raw_image_urls.append(disp_image)
+                else:
+                    raw_image_urls.append(max_image)
+        else:
+            raw_image_urls = _get_dict_value(raw_values, 'maxImageUrl')
+    else:
+        if 'displayImgUrl' in raw_values.keys():
+            raw_image_urls = _get_dict_value(raw_values, 'displayImgUrl')
+
+    image_urls = list(map(f, raw_image_urls))
 
     # Get description
     # Since the description is stored in a separate iframe, an additional
@@ -249,7 +271,7 @@ def _parse_2020_auction_soup(soup, duplicates, raw=False):
 
     # Assemble important data
     return {
-        'listing_id': _get_dict_value(raw_values, 'itemId'),
+        'auction_id': _get_dict_value(raw_values, 'itemId'),
         'title': unicodedata.normalize("NFKD", _get_dict_value(raw_values, \
                 title_key)),
         'seller': _get_dict_value(raw_values, 'entityName'),
@@ -311,13 +333,13 @@ def _parse_search_page(page_text):
             continue
 
         try:
-            listing_id = int(result.attrs['listingid'])
+            auction_id = int(result.attrs['listingid'])
         except KeyError:
             print(colored("Found a non-item. Skipping...", 'red'))
             print(result.prettify())
             continue
         except ValueError:
-            print(colored("Could not convert auction ID {listing_id} to int", \
+            print(colored("Could not convert auction ID {auction_id} to int", \
                     'red'))
 
         name = ' '.join(result.find('h3').find('a').find( \
@@ -326,7 +348,7 @@ def _parse_search_page(page_text):
         tracking_url = result.find('h3').find('a').attrs['href']
         url = urljoin(tracking_url, urlparse(tracking_url).path)
 
-        auctions[listing_id] = {'name': name, 'url': url}
+        auctions[auction_id] = {'name': name, 'url': url}
 
     return auctions
 
@@ -357,10 +379,10 @@ def scrape_profile_page(profile: str, base: str = 'https://www.ebay.com', \
         page_save_path=None):
     if urlparse(profile).netloc == '':
         url = _generate_profile_url(profile, base)
-        seller_id = profile
+        profile_id = profile
     else:
         url = profile
-        seller_id = urlparse(url).path.split('/')[-1]
+        profile_id = urlparse(url).path.split('/')[-1]
 
     r = requests.get(url)
     if not r.ok:
@@ -368,14 +390,14 @@ def scrape_profile_page(profile: str, base: str = 'https://www.ebay.com', \
 
     text = r.text
     if page_save_path is not None:
-        profile_path = page_save_path.joinpath(f'{seller_id}.html')
+        profile_path = page_save_path.joinpath(f'{profile_id}.html')
         with open(profile_path, 'w') as f:
             soup = BeautifulSoup(text, 'html.parser')
             f.write(soup.prettify())
 
     d = _parse_profile_page(text)
     d['url'] = url
-    d['seller_id'] = seller_id
+    d['profile_id'] = profile_id
     return d
 
 def _generate_profile_url(profile_id: int, base_url: str):

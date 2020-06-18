@@ -50,7 +50,7 @@ def profile(profile: str):
             print(colored(e, 'red'))
 
 @app.command()
-def search(query_string: str, n_results: int, auction_save_dir: str = None):
+def search(query_string: str, n_results: int):
     e = setup()
     try:
         e.scrape_search_to_db(query_string, n_results, state['base_url'])
