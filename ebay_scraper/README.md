@@ -1,6 +1,7 @@
 # EBay Scraper
 
 > Scrapes EBay auctions, profiles, and searches into a sqlite database
+
 > Can be used as a CLI tool, or interfaced with directly
 
 ## Building and installation
@@ -108,8 +109,91 @@ ebay-scraper --base-url https://www.ebay.co.uk/ db.db ./data search "mambila art
 ```
 
 ## Interfacing with the API
+`ebay-scraper` can also be invoked as a Python library to automate its operation, or build your own database backend.  `scraper` and `db_interface`.
+
+### scraper
+Provides methods to scrape auction, profile, and search pages, returning the results in a dict.
+
+Import with:
+
+```python3
+from ebay_scraper import scraper
+```
+
+Provides the following methods:
+
+`scrape_auction_page(auction, base: str = 'https://www.ebay.com', raw: bool = False, page_save_path=None)`
+
+`scrape_profile_page(profile: str, base: str = 'https://www.ebay.com', page_save_path=None)`
+
+`scrape_search_page(query_string: str, n_results: int = 50, base: str = 'https://www.ebay.com')`
+
+Example usage:
+
+```python3
+from ebay_scraper import scraper
+es.scrape_auction_page(362995774962)
+```
+
+### db_interface
+Provides the `EbayScraper` class, for the scraping of auctions, profiles, and searches into the database.  For searches, it parses the results to invoke calls to the discovered auctions and profiles.
+
+Import with:
+
+```python3
+from ebay_scraper import db_interface
+```
+
+The `EbayScraper` class requires, upon initialisation, `db_path`, and optionally a `save_location`.  It provides the following methods:
+
+```python3
+class EbayScraper():
+    def __init__(self, db_path, save_location=None)
+    
+    def scrape_auction_to_db(self, auction, base: str = 'https://www.ebay.com')
+    
+    def scrape_profile_to_db(self, profile: str, base: str = 'https://www.ebay.com')
+    
+    def scrape_search_to_db(self, query_string, n_results, base: str = 'https://www.ebay.com') 
+```
 
 ## Database schema
+`ebay_scraper` creates tables `ebay_auctions` and `ebay_profiles` within `DB_PATH`.  These tables take the following schemata:
+
+```
+ebay_auctions (
+    auction_id INTEGER NOT NULL PRIMARY KEY,
+    title TEXT,
+    seller TEXT,   -- Primary key of sellers table
+    start_time INTEGER,
+    end_time INTEGER,
+    n_bids INTEGER,
+    price INTEGER,
+    currency_code TEXT,
+    buy_now_price INTEGER,
+    starting_price INTEGER,
+    winner TEXT,
+    location_id TEXT,  -- Primary key of locations table
+    image_paths TEXT NOT NULL, -- colon-separated paths relative to some base path
+    description TEXT
+);
+
+CREATE TABLE ebay_profiles (
+    profile_id TEXT NOT NULL PRIMARY KEY,
+    description TEXT,
+    contacted INTEGER NOT NULL,
+    email TEXT,
+    location TEXT,
+    name TEXT,
+    registered INTEGER,
+    permission_given INTEGER NOT NULL,
+    member_since TEXT,
+    member_since_unix INTEGER,
+    n_followers INTEGER,
+    n_reviews INTEGER,
+    percent_positive_feedback INTEGER
+);
+```
 
 ## Additional feature ideas
 * Scraping all auctions listed by a given seller
