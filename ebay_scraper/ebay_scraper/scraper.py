@@ -112,6 +112,16 @@ def _generate_auction_url(auction_id: int, base_url: str):
     suffix = page_suffix.format(auction_id)
     return urljoin(base_url, suffix)
 
+def _parse_ancient_auction_soup(soup, duplicates, raw):
+    text = soup.find('td', text=re.compile('.*Item number:.*')).text
+    [auction_id] = [int(s) for s in text.split() if s.isdigit()]
+    desc = soup.find('a', attrs={'name': 'description'}).parent.text
+    
+    return {
+        'auction_id': int(auction_id),
+        'description': _normalise_description(desc)
+    }
+
 def _parse_2010_auction_soup(soup, duplicates, raw):
     # Example file: mambila_art_database/jbidwatcher/jbidwatch\ data\ 2010\ perhaps/auctionsave/400130806558.html
     # Find listing id
@@ -302,8 +312,11 @@ def _parse_auction_page(soup, duplicates: List[str], raw: bool = False):
     except Exception:
         try:
             return _parse_2010_auction_soup(soup, duplicates, raw)
-        except Exception as e:
-            raise ValueError('Could not parse web page')
+        except Exception:
+            try:
+                return _parse_ancient_auction_soup(soup, duplicates, raw)
+            except Exception:
+                raise ValueError('Could not parse web page')
 
 # Generates a search URL
 def _generate_search_url(query_string: str, page_num: int, \
