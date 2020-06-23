@@ -310,16 +310,17 @@ class EbayScraper():
                     p['percent_positive_feedback'])
                 )
 
-
     def scrape_profile_to_db(self, profile: str, base: str = 'https://www.ebay.com'):
         profile_dict = scraper.scrape_profile_page(profile, base, \
                 page_save_path=self.profile_page_location)
         self._merge_and_write_profile(profile_dict)
 
-
     # Some ebay search and download method
-    def scrape_search_to_db(self, query_string, n_results, base: str = 'https://www.ebay.com'):
-        results = scraper.scrape_search_page(query_string, n_results, base)
+    def scrape_search_to_db(self, query_strings, n_results, base: str = 'https://www.ebay.com'):
+        results = {}
+        for query_string in query_strings:
+            results = {**results, \
+                    **scraper.scrape_search_page(query_string, n_results, base)}
         scraped_profiles = set()
         for auction_id, d in results.items():
             try:

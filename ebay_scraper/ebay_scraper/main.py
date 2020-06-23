@@ -3,6 +3,7 @@ from termcolor import colored
 import sys
 import traceback
 import pathlib
+import typing
 
 from . import db_interface
 
@@ -28,29 +29,31 @@ def main(db_path: str, data_location: str, verbose: bool = False, \
     state['data_location'] = data_location
 
 @app.command()
-def auction(auction: str):
+def auction(auction: typing.List[str]):
     e = setup()
-    try:
-        e.scrape_auction_to_db(auction, state['base_url'])
-    except Exception as e:
-        if state['verbose']:
-            print(colored(traceback.format_exc(), 'red'))
-        else:
-            print(colored(e, 'red'))
+    for a in auction:
+        try:
+            e.scrape_auction_to_db(a, state['base_url'])
+        except Exception as e:
+            if state['verbose']:
+                print(colored(traceback.format_exc(), 'red'))
+            else:
+                print(colored(e, 'red'))
 
 @app.command()
-def profile(profile: str):
+def profile(profile: typing.List[str]):
     e = setup()
-    try:
-        e.scrape_profile_to_db(profile, state['base_url'])
-    except Exception as e:
-        if state['verbose']:
-            print(colored(traceback.format_exc(), 'red'))
-        else:
-            print(colored(e, 'red'))
+    for p in profile:
+        try:
+            e.scrape_profile_to_db(p, state['base_url'])
+        except Exception as e:
+            if state['verbose']:
+                print(colored(traceback.format_exc(), 'red'))
+            else:
+                print(colored(e, 'red'))
 
 @app.command()
-def search(query_string: str, n_results: int):
+def search(n_results: int, query_string: typing.List[str]):
     e = setup()
     try:
         e.scrape_search_to_db(query_string, n_results, state['base_url'])
