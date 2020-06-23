@@ -197,6 +197,7 @@ CREATE TABLE ebay_profiles (
 
 ## Additional feature ideas
 * Scraping all auctions listed by a given seller
+* Add a _when_scraped_ field
 
 ## Authors
 Edd Salkield <edd@salkield.uk>
