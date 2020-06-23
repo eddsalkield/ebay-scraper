@@ -6,7 +6,7 @@
 
 ## Building and installation
 
-Ensure poetry is [installed](https://python-poetry.org/docs/#installation).  Then install dependencies into the poetry virtual environment and build:
+Ensure poetry is [installed](https://python-poetry.org/docs/#installation).  Then from this directory install dependencies into the poetry virtual environment and build:
 
 ```bash
 poetry install
