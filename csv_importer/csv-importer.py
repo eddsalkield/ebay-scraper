@@ -246,14 +246,14 @@ def _csv_import_auction(db_path, ebay_auctions_entries, new_auction_dict):
         # Update the row to its new values
         c.execute('''INSERT INTO ebay_auctions (
             auction_id, title, seller, start_time, end_time, n_bids,
-            price, currency_code, starting_price, winner, location_id,
-            image_paths, description) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            price, currency_code, starting_price, buy_now_price,
+            winner, location_id, image_paths, description) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )''',
             (auction_id, a['title'], a['seller'], a['start_time'], \
                 a['end_time'], a['n_bids'], a['price'], a['currency_code'], \
-                a['starting_price'], a['winner'], a['location_id'],
-                a['image_paths'], a['description']))
+                a['starting_price'], a['buy_now_price'], a['winner'], \
+                a['location_id'], a['image_paths'], a['description']))
 
 @app.command()
 def auction(db_path, path):
