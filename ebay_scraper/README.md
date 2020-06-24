@@ -1,6 +1,6 @@
-# EBay Scraper
+# eBay Scraper
 
-> Scrapes EBay auctions, profiles, and searches into a sqlite database
+> Scrapes eBay auctions, profiles, and searches into a sqlite database
 
 > Can be used as a CLI tool, or interfaced with directly
 
@@ -32,7 +32,7 @@ Run `ebay-scraper` to invoke the utility.
 
 ## Usage
 
-`ebay-scraper` will scrape data from auctions, profiles, and searches on EBay.  Resulting textual data is written to a `sqlite3` database, with images and backup web pages optionally being written to a _data directory_.
+`ebay-scraper` will scrape data from auctions, profiles, and searches on eBay.  Resulting textual data is written to a `sqlite3` database, with images and backup web pages optionally being written to a _data directory_.
 
 The tool is invoked as:
 
@@ -59,7 +59,7 @@ Commands:
 * `--base-url`, initially set to `https://www.ebay.com`, can be used to specify an alternative URL to scrape from (e.g. `https://www.ebay.co.uk`).
 
 ### Auction mode
-In auction mode, an auction must be specified as either a unique _EBay auction ID_ or as a URL.  The textual data is scraped into the `ebay_auctions` table of `DB_PATH`, the page is scraped into `DATA_LOCATION/ebay/auctions`, and the images into `DATA_LOCATION/ebay/images`.  The `--base-url` option determines the base URL from which to resolve _EBay auction IDs_ if specified, defaulting to `https://www.ebay.com`.
+In auction mode, an auction must be specified as either a unique _eBay auction ID_ or as a URL.  The textual data is scraped into the `ebay_auctions` table of `DB_PATH`, the page is scraped into `DATA_LOCATION/ebay/auctions`, and the images into `DATA_LOCATION/ebay/images`.  The `--base-url` option determines the base URL from which to resolve _eBay auction IDs_ if specified, defaulting to `https://www.ebay.com`.
 
 Example usage:
 
@@ -78,7 +78,7 @@ ebay-scraper --base-url https://www.ebay.co.uk/ db.db ./data/ auction 3629957749
 ```
 
 ### Profile mode
-In profile mode, a profile must be specified as either a unique _EBay username_ or as a URL.  The textual data is scraped into the `ebay_profiles` table of `DB_PATH`, and the page is scraped into `DATA_LOCATION/ebay/profiles`.  The `--base-url` option determines the base URL from which to resolve _EBay username_ if specified, defaulting to `https://www.ebay.com`.
+In profile mode, a profile must be specified as either a unique _eBay username_ or as a URL.  The textual data is scraped into the `ebay_profiles` table of `DB_PATH`, and the page is scraped into `DATA_LOCATION/ebay/profiles`.  The `--base-url` option determines the base URL from which to resolve _eBay username_ if specified, defaulting to `https://www.ebay.com`.
 
 Example usage:
 
@@ -198,6 +198,7 @@ CREATE TABLE ebay_profiles (
 ## Additional feature ideas
 * Scraping all auctions listed by a given seller
 * Add a _when_scraped_ field
+* Timestamped log outputs
 
 ## Authors
 Edd Salkield <edd@salkield.uk>
