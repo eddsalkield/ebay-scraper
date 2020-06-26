@@ -23,6 +23,9 @@ def _appl(f, d, k):
 
 # merges d2 into d1
 def _merge_dicts(d1: dict, d2: dict):
+    # Remove all keys from d2 that are None
+    d2 = {k:v for (k,v) in d2.items() if v != None}
+
     for k,v2 in d2.items():
         try:
             v1 = d1[k]
@@ -37,21 +40,7 @@ def _merge_dicts(d1: dict, d2: dict):
             d1[k] = v1
             continue
 
-        if isinstance(v1, Number) and isinstance(v2, Number):
-            if v2 > v1:
-                d1[k] = v2
-            continue
-
-        if type(v1) != type(v2):
-            raise ValueError('{} and {} not of same types: {}, {}'.format(\
-                    v1, v2, type(v1), type(v2)))
-
-        if isinstance(v1, str):
-            d1[k] = v2
-            continue
-
-        raise ValueError('Unknown failure between {}:{} and {}:{}'\
-                .format(v1, type(v1), v2, type(v2)))
+        d1[k] = v2
     return d1
 
 
@@ -184,7 +173,6 @@ def profile(db_path, path):
     with open(path) as fd:
         reader = csv.DictReader(fd)
         for d in reader:
-            pprint(d)
             _csv_import_profile(db_path, ebay_profiles_entries, d)
 
 def _csv_import_auction(db_path, ebay_auctions_entries, new_auction_dict):
@@ -288,7 +276,6 @@ def auction(db_path, path):
     with open(path) as fd:
         reader = csv.DictReader(fd)
         for d in reader:
-            pprint(d)
             _csv_import_auction(db_path, ebay_auctions_entries, d)
 
 if __name__ == "__main__":
